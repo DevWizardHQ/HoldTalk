@@ -123,7 +123,6 @@ swift build                  # debug build
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for project layout and guidelines.
-Logo generation prompt in [docs/LOGO_PROMPT.md](docs/LOGO_PROMPT.md).
 
 ## License
 
