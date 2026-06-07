@@ -24,7 +24,7 @@ for MODEL in "$TRANSCRIBE_MODEL" "$TRANSLATE_MODEL"; do
         echo "✓ $MODEL already downloaded"
     else
         echo "▸ Downloading ${MODEL}…"
-        curl -L --progress-bar -o "$MODELS_DIR/$MODEL.part" "$HF_BASE/$MODEL"
+        curl -fL -o "$MODELS_DIR/$MODEL.part" "$HF_BASE/$MODEL"
         mv "$MODELS_DIR/$MODEL.part" "$MODELS_DIR/$MODEL"
         echo "✓ $MODEL downloaded"
     fi

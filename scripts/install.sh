@@ -34,7 +34,7 @@ for MODEL in "$TRANSCRIBE_MODEL" "$TRANSLATE_MODEL"; do
         echo "✓ $MODEL already downloaded"
     else
         echo "▸ Downloading ${MODEL}…"
-        curl -L --progress-bar -o "$MODELS_DIR/$MODEL.part" "$HF_BASE/$MODEL"
+        curl -fL -o "$MODELS_DIR/$MODEL.part" "$HF_BASE/$MODEL"
         mv "$MODELS_DIR/$MODEL.part" "$MODELS_DIR/$MODEL"
         echo "✓ $MODEL downloaded"
     fi
@@ -53,7 +53,7 @@ fi
 WORK="$(mktemp -d /tmp/holdtalk-install.XXXXXX)"
 trap 'rm -rf "$WORK"' EXIT
 echo "▸ Downloading $(basename "$ZIP_URL")…"
-curl -fL --progress-bar -o "$WORK/HoldTalk.zip" "$ZIP_URL"
+curl -fL -o "$WORK/HoldTalk.zip" "$ZIP_URL"
 
 # 4. Verify checksum when published
 if [ -n "$SHA_URL" ]; then
