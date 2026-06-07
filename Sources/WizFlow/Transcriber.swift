@@ -26,10 +26,14 @@ final class Transcriber {
 
             let text: String?
             if let baseURL = WhisperServerManager.shared.waitForServer(mode: mode) {
+                Log.write("transcribe: server path \(baseURL)")
                 text = self.transcribeViaServer(baseURL: baseURL, audioURL: audioURL, mode: mode)
+                    ?? self.transcribeViaCLI(audioURL: audioURL, mode: mode) // server hiccup → CLI
             } else {
+                Log.write("transcribe: CLI fallback path")
                 text = self.transcribeViaCLI(audioURL: audioURL, mode: mode)
             }
+            Log.write("transcribe: result \(text.map { "\($0.count) chars" } ?? "nil")")
             WhisperServerManager.shared.touch()
             completion(self.cancelled ? nil : text)
         }

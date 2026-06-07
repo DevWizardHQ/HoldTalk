@@ -27,15 +27,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Log.write("launch: AXIsProcessTrusted=\(AXIsProcessTrusted())")
         setupStatusItem()
         requestMicrophoneAccess()
 
-        if AXIsProcessTrusted() {
-            startHotkeyMonitor()
-        } else {
+        if !AXIsProcessTrusted() {
             promptForAccessibility()
-            waitForAccessibilityGrant()
         }
+        // Always poll: AXIsProcessTrusted can report a stale grant (old signature)
+        // while the event tap still fails. Keep trying until the tap installs.
+        startHotkeyMonitorWithRetry()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -114,36 +115,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Polls until Accessibility is granted, then starts the hotkey monitor —
-    /// no relaunch needed.
-    private func waitForAccessibilityGrant() {
+    /// Tries to install the event tap; on failure retries every 2s until it
+    /// succeeds (e.g. the user grants Accessibility while we wait). No relaunch needed.
+    private func startHotkeyMonitorWithRetry() {
         accessibilityPollTimer?.invalidate()
+        if startHotkeyMonitorOnce() {
+            Log.write("hotkey: event tap installed")
+            return
+        }
+        Log.write("hotkey: event tap failed, polling for Accessibility grant")
         accessibilityPollTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] timer in
-            guard AXIsProcessTrusted() else { return }
+            guard let self, self.startHotkeyMonitorOnce() else { return }
             timer.invalidate()
-            self?.accessibilityPollTimer = nil
-            self?.startHotkeyMonitor()
+            self.accessibilityPollTimer = nil
+            Log.write("hotkey: event tap installed after grant")
             NSSound(named: "Glass")?.play() // audible "ready" cue
         }
     }
 
     // MARK: - Hotkey
 
+    /// Called from Settings when a hotkey changes.
     func startHotkeyMonitor() {
+        if !startHotkeyMonitorOnce() {
+            startHotkeyMonitorWithRetry()
+        }
+    }
+
+    @discardableResult
+    private func startHotkeyMonitorOnce() -> Bool {
         hotkeyMonitor?.stop()
+        hotkeyMonitor = nil
         let monitor = HotkeyMonitor(
             transcribeHotkey: Settings.transcribeHotkey,
             translateHotkey: Settings.translateHotkey
         )
         monitor.onHoldStart = { [weak self] mode in self?.beginDictation(mode: mode) }
         monitor.onHoldEnd = { [weak self] in self?.endDictation() }
-        if !monitor.start() {
-            showAlert(
-                title: "Hotkey unavailable",
-                text: "Could not install the global hotkey listener. Make sure Accessibility access is granted, then relaunch WizFlow."
-            )
-        }
+        guard monitor.start() else { return false }
         hotkeyMonitor = monitor
+        return true
     }
 
     // MARK: - Dictation flow
@@ -164,6 +175,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             openSettings()
             return
         }
+        Log.write("dictation: hold start, mode=\(mode.rawValue)")
         // Spin up the whisper-server now so the model loads while the user speaks.
         WhisperServerManager.shared.preload(mode: mode)
         do {
@@ -180,10 +192,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard case .recording(let mode) = phase else { return }
         guard let result = recorder.stop() else {
             // Too short or failed — treat as accidental tap.
+            Log.write("dictation: recording too short, discarded")
             phase = .idle
             hud.hide()
             return
         }
+        Log.write("dictation: recorded \(String(format: "%.1f", result.duration))s")
         phase = .processing(mode)
         hud.show(state: .processing)
 
@@ -196,9 +210,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.hud.hide()
                 }
                 guard let transcript, !transcript.isEmpty else {
+                    Log.write("dictation: empty transcript")
                     NSSound(named: "Basso")?.play()
                     return
                 }
+                Log.write("dictation: pasting \(transcript.count) chars")
                 Paster.paste(transcript)
                 NSSound(named: "Tink")?.play()
             }
