@@ -56,7 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit WizFlow", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Quit HoldTalk", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
     }
 
@@ -76,11 +76,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 statusItem.button?.contentTintColor = nil
                 return
             }
-            setSymbolIcon("mic", description: "WizFlow idle", tint: nil)
+            setSymbolIcon("mic", description: "HoldTalk idle", tint: nil)
         case .recording:
-            setSymbolIcon("mic.fill", description: "WizFlow recording", tint: .systemRed)
+            setSymbolIcon("mic.fill", description: "HoldTalk recording", tint: .systemRed)
         case .processing:
-            setSymbolIcon("waveform", description: "WizFlow processing", tint: nil)
+            setSymbolIcon("waveform", description: "HoldTalk processing", tint: nil)
         }
     }
 
@@ -99,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 DispatchQueue.main.async {
                     self.showAlert(
                         title: "Microphone access needed",
-                        text: "Enable WizFlow in System Settings → Privacy & Security → Microphone, then relaunch."
+                        text: "Enable HoldTalk in System Settings → Privacy & Security → Microphone, then relaunch."
                     )
                 }
             }
@@ -228,7 +228,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let view = SettingsView(appDelegate: self)
             let hosting = NSHostingController(rootView: view)
             let window = NSWindow(contentViewController: hosting)
-            window.title = "WizFlow Settings"
+            window.title = "HoldTalk Settings"
             window.styleMask = [.titled, .closable]
             window.isReleasedWhenClosed = false
             settingsWindow = window

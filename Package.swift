@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "WizFlow",
+    name: "HoldTalk",
     platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
-            name: "WizFlow",
-            path: "Sources/WizFlow"
+            name: "HoldTalk",
+            path: "Sources/HoldTalk"
         )
     ]
 )

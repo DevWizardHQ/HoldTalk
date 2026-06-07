@@ -1,16 +1,16 @@
 import Foundation
 
-/// Minimal file logger: ~/Library/Logs/WizFlow.log
-/// `tail -f ~/Library/Logs/WizFlow.log` while debugging.
+/// Minimal file logger: ~/Library/Logs/HoldTalk.log
+/// `tail -f ~/Library/Logs/HoldTalk.log` while debugging.
 enum Log {
     private static let url: URL = {
         let logs = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Logs", isDirectory: true)
         try? FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
-        return logs.appendingPathComponent("WizFlow.log")
+        return logs.appendingPathComponent("HoldTalk.log")
     }()
 
-    private static let queue = DispatchQueue(label: "wizflow.log")
+    private static let queue = DispatchQueue(label: "holdtalk.log")
 
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()

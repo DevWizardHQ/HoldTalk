@@ -15,7 +15,7 @@ final class AudioRecorder {
 
     func start() throws {
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("wizflow-\(UUID().uuidString).wav")
+            .appendingPathComponent("holdtalk-\(UUID().uuidString).wav")
 
         let settings: [String: Any] = [
             AVFormatIDKey: kAudioFormatLinearPCM,
@@ -28,7 +28,7 @@ final class AudioRecorder {
 
         let recorder = try AVAudioRecorder(url: url, settings: settings)
         guard recorder.record() else {
-            throw NSError(domain: "WizFlow", code: 1, userInfo: [
+            throw NSError(domain: "HoldTalk", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "Recording failed to start. Check microphone access in System Settings → Privacy & Security → Microphone."
             ])
         }

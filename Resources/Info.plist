@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>WizFlow</string>
+    <string>HoldTalk</string>
     <key>CFBundleDisplayName</key>
-    <string>WizFlow</string>
+    <string>HoldTalk</string>
     <key>CFBundleIdentifier</key>
-    <string>com.iqbal.wizflow</string>
+    <string>com.devwizardhq.holdtalk</string>
     <key>CFBundleVersion</key>
     <string>1.0.0</string>
     <key>CFBundleShortVersionString</key>
     <string>1.0.0</string>
     <key>CFBundleExecutable</key>
-    <string>WizFlow</string>
+    <string>HoldTalk</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>
@@ -21,7 +21,7 @@
     <key>LSUIElement</key>
     <true/>
     <key>NSMicrophoneUsageDescription</key>
-    <string>WizFlow needs the microphone to transcribe your speech.</string>
+    <string>HoldTalk needs the microphone to transcribe your speech.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>CFBundleIconFile</key>

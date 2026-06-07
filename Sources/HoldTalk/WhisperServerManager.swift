@@ -20,7 +20,7 @@ final class WhisperServerManager {
 
     private var servers: [DictationMode: Server] = [:]
     private var idleTimer: Timer?
-    private let queue = DispatchQueue(label: "wizflow.servermanager")
+    private let queue = DispatchQueue(label: "holdtalk.servermanager")
 
     private static let ports: [DictationMode: Int] = [.transcribe: 18178, .translate: 18179]
 
@@ -145,7 +145,7 @@ final class WhisperServerManager {
         return reachable
     }
 
-    /// Kills whisper-server processes left over from a crashed WizFlow on our ports.
+    /// Kills whisper-server processes left over from a crashed HoldTalk on our ports.
     private static func killStaleServers() {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")

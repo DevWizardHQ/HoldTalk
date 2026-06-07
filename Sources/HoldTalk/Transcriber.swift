@@ -6,7 +6,7 @@ import Foundation
 final class Transcriber {
     private var currentProcess: Process?
     private var cancelled = false
-    private let queue = DispatchQueue(label: "wizflow.transcriber")
+    private let queue = DispatchQueue(label: "holdtalk.transcriber")
 
     /// Locates the whisper.cpp CLI binary (Homebrew installs it as whisper-cli).
     static func findWhisperCLI() -> String? {
@@ -72,7 +72,7 @@ final class Transcriber {
     private func postInference(baseURL: URL, audioURL: URL, language: String) -> String? {
         guard let audioData = try? Data(contentsOf: audioURL) else { return nil }
 
-        let boundary = "wizflow-\(UUID().uuidString)"
+        let boundary = "holdtalk-\(UUID().uuidString)"
         var body = Data()
         func field(_ name: String, _ value: String) {
             body.append("--\(boundary)\r\nContent-Disposition: form-data; name=\"\(name)\"\r\n\r\n\(value)\r\n".data(using: .utf8)!)

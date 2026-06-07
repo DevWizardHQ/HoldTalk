@@ -1,7 +1,7 @@
 import Foundation
 
 /// Manages the whisper.cpp GGML model files on disk.
-/// Models live in ~/Library/Application Support/WizFlow/models/.
+/// Models live in ~/Library/Application Support/HoldTalk/models/.
 enum ModelManager {
     struct Model {
         let fileName: String
@@ -22,8 +22,18 @@ enum ModelManager {
     )
 
     static var modelsDirectory: URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("WizFlow/models", isDirectory: true)
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let dir = appSupport.appendingPathComponent("HoldTalk/models", isDirectory: true)
+
+        // Migrate models downloaded under the app's previous name (WizFlow).
+        let legacy = appSupport.appendingPathComponent("WizFlow/models", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: dir.path),
+           FileManager.default.fileExists(atPath: legacy.path) {
+            try? FileManager.default.createDirectory(
+                at: dir.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? FileManager.default.moveItem(at: legacy, to: dir)
+        }
+
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }

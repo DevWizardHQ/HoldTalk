@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="assets/logo.svg" width="128" alt="WizFlow logo"/>
+<img src="assets/logo.svg" width="128" alt="HoldTalk logo"/>
 
-# WizFlow
+# HoldTalk
 
 **Push-to-talk dictation for macOS — 100% free, 100% offline.**
 
@@ -17,7 +17,7 @@ Hold a key. Speak in Bangla or English. Release. Your words appear at the cursor
 
 ---
 
-WizFlow is a Wispr Flow–style dictation tool with none of the strings attached:
+HoldTalk is a Wispr Flow–style dictation tool with none of the strings attached:
 no API keys, no accounts, no subscriptions, no audio ever leaving your Mac.
 It runs OpenAI's Whisper model locally via
 [whisper.cpp](https://github.com/ggerganov/whisper.cpp) and pastes the result
@@ -52,31 +52,32 @@ The Whisper model is **never resident while idle**. On the first key-press a
 local `whisper-server` spawns and loads the model during your speech; it stays
 warm for fast follow-up dictations, then shuts down after the idle timeout
 (default 3 min) to return its RAM to the system. If the server isn't
-available, WizFlow falls back to one-shot `whisper-cli`.
+available, HoldTalk falls back to one-shot `whisper-cli`.
 
 ### Performance (Apple M1, 8 GB)
 
 | Path | Latency after release | Idle RAM |
 |---|---|---|
 | Cold `whisper-cli` spawn | ~17 s | 0 |
-| **Warm server (WizFlow default)** | **~1.5–3.5 s** | 0 after idle timeout |
+| **Warm server (HoldTalk default)** | **~1.5–3.5 s** | 0 after idle timeout |
 
 ## Installation
 
 ```bash
-git clone https://github.com/<you>/wizFlow.git
-cd wizFlow
+git clone https://github.com/DevWizardHQ/HoldTalk.git
+cd HoldTalk
 ./setup.sh
 ```
 
 `setup.sh` installs `whisper-cpp` via Homebrew, downloads the two models
-(~1.1 GB total), and builds `dist/WizFlow.app`.
+(~1.1 GB total), builds the app, and installs it to `/Applications/HoldTalk.app`.
 
 Then:
 
-1. `open dist/WizFlow.app`
+1. Open **HoldTalk** from Launchpad or Spotlight
 2. Grant **Microphone** and **Accessibility** permissions
-   (System Settings → Privacy & Security), relaunch
+   (System Settings → Privacy & Security) — the hotkey activates the moment
+   you grant, no relaunch needed
 3. Open any app, hold **Right ⌥**, speak, release
 
 ## Usage
@@ -94,13 +95,13 @@ Then:
 | Transcribe | `ggml-large-v3-turbo-q5_0` | ~574 MB | Best multilingual speed/quality balance |
 | Translate | `ggml-medium-q5_0` | ~539 MB | Whisper's built-in any-language → English |
 
-Models live in `~/Library/Application Support/WizFlow/models/` and can also be
+Models live in `~/Library/Application Support/HoldTalk/models/` and can also be
 downloaded from in-app Settings.
 
 ## FAQ
 
 **Why not the OpenAI/Groq/Deepgram API?**
-WizFlow's goal is zero cost and zero cloud. Whisper large-v3-turbo locally on
+HoldTalk's goal is zero cost and zero cloud. Whisper large-v3-turbo locally on
 Apple Silicon is fast enough that the API buys you little.
 
 **Does it work with languages other than Bangla/English?**
@@ -108,8 +109,9 @@ Yes — Whisper auto-detects ~100 languages. The Bangla→Hindi retry heuristic
 only kicks in when auto-detect produces Devanagari.
 
 **Why does Accessibility permission reset after I rebuild?**
-The app is ad-hoc signed; each build gets a new signature. Remove + re-add
-WizFlow in System Settings → Accessibility, or sign with a real identity.
+macOS ties permissions to the code signature. Create the stable local signing
+certificate described in [CONTRIBUTING.md](CONTRIBUTING.md#signing) once and
+the build script signs every build identically — permissions then persist.
 
 **My dictation is longer than 15 seconds — is that OK?**
 Yes. The encoder window is tuned to 15 s for speed; longer audio is processed
