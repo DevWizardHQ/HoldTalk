@@ -76,16 +76,22 @@ echo "▸ Resetting privacy permissions (best effort)"
 tccutil reset Accessibility "$BUNDLE_ID" 2>/dev/null || true
 tccutil reset Microphone "$BUNDLE_ID" 2>/dev/null || true
 
-if [ "$WITH_WHISPER" = 1 ]; then
-    if command -v brew >/dev/null && brew list whisper-cpp >/dev/null 2>&1; then
+# whisper-cpp dependency: ask interactively unless a flag already decided.
+if command -v brew >/dev/null && brew list whisper-cpp >/dev/null 2>&1; then
+    if [ "$WITH_WHISPER" = 0 ] && [ "$ASSUME_YES" = 0 ]; then
+        echo
+        read -r -p "Also uninstall the whisper-cpp Homebrew package? Other tools may use it. [y/N] " whisper_answer </dev/tty
+        case "$whisper_answer" in
+            y|Y|yes|YES) WITH_WHISPER=1 ;;
+        esac
+    fi
+    if [ "$WITH_WHISPER" = 1 ]; then
         echo "▸ Uninstalling whisper-cpp (Homebrew)"
         brew uninstall whisper-cpp
     else
-        echo "▸ whisper-cpp not installed via Homebrew (skipping)"
+        echo "▸ Keeping whisper-cpp (other tools may use it)"
     fi
 fi
 
 echo
 echo "✓ HoldTalk uninstalled."
-[ "$WITH_WHISPER" = 0 ] && echo "  Note: the whisper-cpp Homebrew package was kept (other tools may use it)."
-echo "  Re-run with --with-whisper to remove it too."
