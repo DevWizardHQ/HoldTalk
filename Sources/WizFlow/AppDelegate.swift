@@ -53,28 +53,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
     }
 
+    private static let logoIcon: NSImage? = {
+        guard let url = Bundle.main.url(forResource: "MenuBarIcon", withExtension: "png"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        image.size = NSSize(width: 18, height: 18)
+        image.isTemplate = false // full-color logo
+        return image
+    }()
+
     private func updateStatusIcon() {
-        let symbolName: String
-        let description: String
         switch phase {
         case .idle:
-            symbolName = "mic"
-            description = "WizFlow idle"
+            if let logo = Self.logoIcon {
+                statusItem.button?.image = logo
+                statusItem.button?.contentTintColor = nil
+                return
+            }
+            setSymbolIcon("mic", description: "WizFlow idle", tint: nil)
         case .recording:
-            symbolName = "mic.fill"
-            description = "WizFlow recording"
+            setSymbolIcon("mic.fill", description: "WizFlow recording", tint: .systemRed)
         case .processing:
-            symbolName = "waveform"
-            description = "WizFlow processing"
+            setSymbolIcon("waveform", description: "WizFlow processing", tint: nil)
         }
+    }
+
+    private func setSymbolIcon(_ symbolName: String, description: String, tint: NSColor?) {
         let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: description)
         image?.isTemplate = true
         statusItem.button?.image = image
-        if case .recording = phase {
-            statusItem.button?.contentTintColor = .systemRed
-        } else {
-            statusItem.button?.contentTintColor = nil
-        }
+        statusItem.button?.contentTintColor = tint
     }
 
     // MARK: - Permissions
