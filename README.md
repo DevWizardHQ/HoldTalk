@@ -66,14 +66,27 @@ available, HoldTalk falls back to one-shot `whisper-cli`.
 
 ## Installation
 
-```bash
+```sh
+curl -fsSL https://raw.githubusercontent.com/DevWizardHQ/HoldTalk/main/scripts/install.sh | bash
+```
+
+The installer adds `whisper-cpp` via Homebrew, downloads the two models
+(~1.1 GB total), and installs the latest prebuilt release (checksum-verified)
+to `/Applications/HoldTalk.app`. No Xcode needed.
+
+<details>
+<summary>Build from source instead</summary>
+
+```sh
 git clone https://github.com/DevWizardHQ/HoldTalk.git
 cd HoldTalk
 ./setup.sh
 ```
 
-`setup.sh` installs `whisper-cpp` via Homebrew, downloads the two models
-(~1.1 GB total), builds the app, and installs it to `/Applications/HoldTalk.app`.
+`setup.sh` does the same but builds the app locally (requires Xcode command
+line tools).
+
+</details>
 
 Then:
 
