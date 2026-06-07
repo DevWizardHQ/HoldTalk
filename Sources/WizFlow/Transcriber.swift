@@ -21,54 +21,65 @@ final class Transcriber {
     func transcribe(audioURL: URL, mode: DictationMode, completion: @escaping (String?) -> Void) {
         queue.async { [weak self] in
             guard let self else { return }
-            guard let cli = Self.findWhisperCLI() else {
-                completion(nil)
+            let text = self.run(audioURL: audioURL, mode: mode, language: "auto")
+
+            // Whisper often misdetects Bangla as Hindi on short clips. If auto-detect
+            // produced Devanagari, re-run once forced to Bangla.
+            if mode == .transcribe, let text, Self.looksLikeHindiMisdetection(text) {
+                completion(self.run(audioURL: audioURL, mode: mode, language: "bn") ?? text)
                 return
             }
-            let modelPath = ModelManager.modelPath(for: mode).path
-
-            var arguments = [
-                "-m", modelPath,
-                "-f", audioURL.path,
-                "-l", "auto",
-                "-nt",          // no timestamps
-                "-np",          // no progress/debug prints
-                "-t", "4",      // 4 threads — fast on M1 without starving other work
-            ]
-            if mode == .translate {
-                arguments.append("--translate")
-            }
-
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: cli)
-            process.arguments = arguments
-            let stdout = Pipe()
-            process.standardOutput = stdout
-            process.standardError = Pipe() // discard
-
-            self.currentProcess = process
-            do {
-                try process.run()
-            } catch {
-                self.currentProcess = nil
-                completion(nil)
-                return
-            }
-
-            let data = stdout.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            let wasCancelled = self.currentProcess !== process
-            self.currentProcess = nil
-
-            guard !wasCancelled, process.terminationStatus == 0 else {
-                completion(wasCancelled ? nil : nil)
-                return
-            }
-
-            let text = String(data: data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
             completion(text)
         }
+    }
+
+    /// True when the text is dominated by Devanagari script — the bn→hi misdetection signature.
+    static func looksLikeHindiMisdetection(_ text: String) -> Bool {
+        let letters = text.unicodeScalars.filter { CharacterSet.letters.contains($0) }
+        guard !letters.isEmpty else { return false }
+        let devanagari = letters.filter { (0x0900...0x097F).contains($0.value) }
+        return Double(devanagari.count) / Double(letters.count) > 0.5
+    }
+
+    private func run(audioURL: URL, mode: DictationMode, language: String) -> String? {
+        guard let cli = Self.findWhisperCLI() else { return nil }
+        let modelPath = ModelManager.modelPath(for: mode).path
+
+        var arguments = [
+            "-m", modelPath,
+            "-f", audioURL.path,
+            "-l", language,
+            "-nt",          // no timestamps
+            "-np",          // no progress/debug prints
+            "-t", "4",      // 4 threads — fast on M1 without starving other work
+        ]
+        if mode == .translate {
+            arguments.append("--translate")
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: cli)
+        process.arguments = arguments
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        process.standardError = Pipe() // discard
+
+        currentProcess = process
+        do {
+            try process.run()
+        } catch {
+            currentProcess = nil
+            return nil
+        }
+
+        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        let wasCancelled = currentProcess !== process
+        currentProcess = nil
+
+        guard !wasCancelled, process.terminationStatus == 0 else { return nil }
+        return String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Cancels any in-flight transcription (e.g. when a new dictation starts).
