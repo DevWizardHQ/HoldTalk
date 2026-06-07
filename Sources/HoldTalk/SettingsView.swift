@@ -74,7 +74,9 @@ struct SettingsView: View {
                             launchAtLogin = SMAppService.mainApp.status == .enabled
                         }
                     }
-                Toggle("Check for updates automatically", isOn: $autoUpdates)
+                Toggle(isOn: $autoUpdates) {
+                    Label("Check for updates automatically", systemImage: "arrow.triangle.2.circlepath")
+                }
                     .onChange(of: autoUpdates) { _, enabled in
                         Settings.autoCheckUpdates = enabled
                         if enabled {

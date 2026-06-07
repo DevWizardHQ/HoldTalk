@@ -86,8 +86,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showUpdateMenuItem(version: String) {
         guard let menu = statusMenu,
               !menu.items.contains(where: { $0.action == #selector(installUpdate) }) else { return }
-        let item = menuItem("Install HoldTalk \(version)…",
-                            symbol: "arrow.down.circle.fill", action: #selector(installUpdate))
+        let item = NSMenuItem(title: "⬆ Install HoldTalk \(version)…",
+                              action: #selector(installUpdate), keyEquivalent: "")
         menu.insertItem(item, at: 0)
         menu.insertItem(.separator(), at: 1)
     }
