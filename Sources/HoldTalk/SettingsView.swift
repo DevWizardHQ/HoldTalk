@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var translateHotkey = Settings.translateHotkey
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var keepWarm = Settings.keepWarmDuration
+    @State private var autoUpdates = Settings.autoCheckUpdates
 
     @StateObject private var transcribeDownloader = ModelDownloader()
     @StateObject private var translateDownloader = ModelDownloader()
@@ -73,6 +74,24 @@ struct SettingsView: View {
                             launchAtLogin = SMAppService.mainApp.status == .enabled
                         }
                     }
+                Toggle("Check for updates automatically", isOn: $autoUpdates)
+                    .onChange(of: autoUpdates) { _, enabled in
+                        Settings.autoCheckUpdates = enabled
+                        if enabled {
+                            UpdateManager.shared.startAutomaticChecks()
+                        } else {
+                            UpdateManager.shared.stopAutomaticChecks()
+                        }
+                    }
+                LabeledContent("Version") {
+                    HStack {
+                        Text(UpdateManager.currentVersion)
+                            .foregroundStyle(.secondary)
+                        Button("Check Now") {
+                            UpdateManager.shared.checkForUpdates(userInitiated: true)
+                        }
+                    }
+                }
             }
         }
         .formStyle(.grouped)

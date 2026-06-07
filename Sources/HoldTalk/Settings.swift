@@ -84,6 +84,13 @@ enum Settings {
         static let translateKeyCode = "translateKeyCode"
         static let translateFlags = "translateFlags"
         static let keepWarmDuration = "keepWarmDuration"
+        static let autoCheckUpdates = "autoCheckUpdates"
+    }
+
+    /// Whether to check GitHub for new releases automatically (launch + daily).
+    static var autoCheckUpdates: Bool {
+        get { defaults.object(forKey: Key.autoCheckUpdates) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Key.autoCheckUpdates) }
     }
 
     /// How long the whisper-server (and its ~600 MB model) stays resident after the

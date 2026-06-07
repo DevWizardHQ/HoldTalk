@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let hud = HUDController()
     private var settingsWindow: NSWindow?
     private var accessibilityPollTimer: Timer?
+    private var statusMenu: NSMenu?
 
     private(set) var phase: AppPhase = .idle {
         didSet { updateStatusIcon() }
@@ -37,6 +38,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Always poll: AXIsProcessTrusted can report a stale grant (old signature)
         // while the event tap still fails. Keep trying until the tap installs.
         startHotkeyMonitorWithRetry()
+
+        UpdateManager.shared.onUpdateAvailable = { [weak self] release in
+            self?.showUpdateMenuItem(version: release.version)
+        }
+        UpdateManager.shared.startAutomaticChecks()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -55,9 +61,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(holdInfo)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
+        menu.addItem(NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit HoldTalk", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
+        statusMenu = menu
+    }
+
+    // MARK: - Updates
+
+    @objc private func checkForUpdates() {
+        UpdateManager.shared.checkForUpdates(userInitiated: true)
+    }
+
+    /// Adds an "Install HoldTalk x.y.z…" item at the top of the menu when an
+    /// update is found by a background check.
+    private func showUpdateMenuItem(version: String) {
+        guard let menu = statusMenu,
+              !menu.items.contains(where: { $0.action == #selector(installUpdate) }) else { return }
+        let item = NSMenuItem(title: "⬆ Install HoldTalk \(version)…",
+                              action: #selector(installUpdate), keyEquivalent: "")
+        menu.insertItem(item, at: 0)
+        menu.insertItem(.separator(), at: 1)
+    }
+
+    @objc private func installUpdate() {
+        guard let release = UpdateManager.shared.availableRelease else { return }
+        UpdateManager.shared.install(release)
     }
 
     private static let logoIcon: NSImage? = {
