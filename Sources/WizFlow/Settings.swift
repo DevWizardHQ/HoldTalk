@@ -83,6 +83,17 @@ enum Settings {
         static let transcribeFlags = "transcribeFlags"
         static let translateKeyCode = "translateKeyCode"
         static let translateFlags = "translateFlags"
+        static let keepWarmDuration = "keepWarmDuration"
+    }
+
+    /// How long the whisper-server (and its ~600 MB model) stays resident after the
+    /// last dictation before being shut down to free RAM.
+    static var keepWarmDuration: TimeInterval {
+        get {
+            let value = defaults.double(forKey: Key.keepWarmDuration)
+            return value > 0 ? value : 180 // default 3 minutes
+        }
+        set { defaults.set(newValue, forKey: Key.keepWarmDuration) }
     }
 
     static var transcribeHotkey: HotkeyConfig {

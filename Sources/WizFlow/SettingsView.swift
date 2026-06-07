@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var transcribeHotkey = Settings.transcribeHotkey
     @State private var translateHotkey = Settings.translateHotkey
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var keepWarm = Settings.keepWarmDuration
 
     @StateObject private var transcribeDownloader = ModelDownloader()
     @StateObject private var translateDownloader = ModelDownloader()
@@ -42,6 +43,21 @@ struct SettingsView: View {
                         .foregroundStyle(.orange)
                         .font(.callout)
                 }
+            }
+
+            Section("Performance") {
+                Picker("Keep model warm for", selection: $keepWarm) {
+                    Text("1 minute").tag(TimeInterval(60))
+                    Text("3 minutes").tag(TimeInterval(180))
+                    Text("10 minutes").tag(TimeInterval(600))
+                    Text("30 minutes").tag(TimeInterval(1800))
+                }
+                .onChange(of: keepWarm) { _, value in
+                    Settings.keepWarmDuration = value
+                }
+                Text("After the last dictation, the speech model stays loaded for this long (fast repeat dictations), then is unloaded to free ~600 MB RAM.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section {

@@ -1,10 +1,11 @@
 import Foundation
 
-/// Runs whisper-cli as a one-shot subprocess per dictation.
-/// No model is kept resident in memory — the process exits when transcription finishes,
-/// keeping WizFlow's idle footprint near zero.
+/// Transcribes audio, preferring the keep-warm whisper-server (fast path, ~1.5–3.5s)
+/// and falling back to a one-shot whisper-cli subprocess (cold path, ~17s) when the
+/// server isn't available.
 final class Transcriber {
     private var currentProcess: Process?
+    private var cancelled = false
     private let queue = DispatchQueue(label: "wizflow.transcriber")
 
     /// Locates the whisper.cpp CLI binary (Homebrew installs it as whisper-cli).
@@ -21,15 +22,25 @@ final class Transcriber {
     func transcribe(audioURL: URL, mode: DictationMode, completion: @escaping (String?) -> Void) {
         queue.async { [weak self] in
             guard let self else { return }
-            let text = self.run(audioURL: audioURL, mode: mode, language: "auto")
+            self.cancelled = false
 
-            // Whisper often misdetects Bangla as Hindi on short clips. If auto-detect
-            // produced Devanagari, re-run once forced to Bangla.
-            if mode == .transcribe, let text, Self.looksLikeHindiMisdetection(text) {
-                completion(self.run(audioURL: audioURL, mode: mode, language: "bn") ?? text)
-                return
+            let text: String?
+            if let baseURL = WhisperServerManager.shared.waitForServer(mode: mode) {
+                text = self.transcribeViaServer(baseURL: baseURL, audioURL: audioURL, mode: mode)
+            } else {
+                text = self.transcribeViaCLI(audioURL: audioURL, mode: mode)
             }
-            completion(text)
+            WhisperServerManager.shared.touch()
+            completion(self.cancelled ? nil : text)
+        }
+    }
+
+    /// Cancels any in-flight transcription (e.g. when a new dictation starts).
+    func cancel() {
+        cancelled = true
+        if let process = currentProcess, process.isRunning {
+            currentProcess = nil
+            process.terminate()
         }
     }
 
@@ -41,12 +52,67 @@ final class Transcriber {
         return Double(devanagari.count) / Double(letters.count) > 0.5
     }
 
-    private func run(audioURL: URL, mode: DictationMode, language: String) -> String? {
+    // MARK: - Server path
+
+    private func transcribeViaServer(baseURL: URL, audioURL: URL, mode: DictationMode) -> String? {
+        let text = postInference(baseURL: baseURL, audioURL: audioURL, language: "auto")
+
+        // Whisper often misdetects Bangla as Hindi on short clips. If auto-detect
+        // produced Devanagari, re-run once forced to Bangla.
+        if mode == .transcribe, let text, Self.looksLikeHindiMisdetection(text), !cancelled {
+            return postInference(baseURL: baseURL, audioURL: audioURL, language: "bn") ?? text
+        }
+        return text
+    }
+
+    private func postInference(baseURL: URL, audioURL: URL, language: String) -> String? {
+        guard let audioData = try? Data(contentsOf: audioURL) else { return nil }
+
+        let boundary = "wizflow-\(UUID().uuidString)"
+        var body = Data()
+        func field(_ name: String, _ value: String) {
+            body.append("--\(boundary)\r\nContent-Disposition: form-data; name=\"\(name)\"\r\n\r\n\(value)\r\n".data(using: .utf8)!)
+        }
+        field("response_format", "text")
+        field("language", language)
+        field("temperature", "0.0")
+        body.append("--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"audio.wav\"\r\nContent-Type: audio/wav\r\n\r\n".data(using: .utf8)!)
+        body.append(audioData)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+
+        var request = URLRequest(url: baseURL.appendingPathComponent("inference"), timeoutInterval: 120)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+
+        let semaphore = DispatchSemaphore(value: 0)
+        var result: String?
+        URLSession.shared.dataTask(with: request) { data, response, _ in
+            if let data, let http = response as? HTTPURLResponse, http.statusCode == 200 {
+                result = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            semaphore.signal()
+        }.resume()
+        semaphore.wait()
+        return result
+    }
+
+    // MARK: - CLI fallback path
+
+    private func transcribeViaCLI(audioURL: URL, mode: DictationMode) -> String? {
+        let text = runCLI(audioURL: audioURL, mode: mode, language: "auto")
+        if mode == .transcribe, let text, Self.looksLikeHindiMisdetection(text), !cancelled {
+            return runCLI(audioURL: audioURL, mode: mode, language: "bn") ?? text
+        }
+        return text
+    }
+
+    private func runCLI(audioURL: URL, mode: DictationMode, language: String) -> String? {
         guard let cli = Self.findWhisperCLI() else { return nil }
-        let modelPath = ModelManager.modelPath(for: mode).path
 
         var arguments = [
-            "-m", modelPath,
+            "-m", ModelManager.modelPath(for: mode).path,
             "-f", audioURL.path,
             "-l", language,
             "-nt",          // no timestamps
@@ -74,19 +140,10 @@ final class Transcriber {
 
         let data = stdout.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        let wasCancelled = currentProcess !== process
         currentProcess = nil
 
-        guard !wasCancelled, process.terminationStatus == 0 else { return nil }
+        guard !cancelled, process.terminationStatus == 0 else { return nil }
         return String(data: data, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// Cancels any in-flight transcription (e.g. when a new dictation starts).
-    func cancel() {
-        if let process = currentProcess, process.isRunning {
-            currentProcess = nil
-            process.terminate()
-        }
     }
 }

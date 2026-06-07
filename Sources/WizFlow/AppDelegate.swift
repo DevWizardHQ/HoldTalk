@@ -32,6 +32,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startHotkeyMonitor()
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        WhisperServerManager.shared.shutdownAll()
+    }
+
     // MARK: - Status item
 
     private func setupStatusItem() {
@@ -135,6 +139,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             openSettings()
             return
         }
+        // Spin up the whisper-server now so the model loads while the user speaks.
+        WhisperServerManager.shared.preload(mode: mode)
         do {
             try recorder.start()
             phase = .recording(mode)
