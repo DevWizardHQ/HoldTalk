@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyMonitor: HotkeyMonitor?
     private let hud = HUDController()
     private var settingsWindow: NSWindow?
+    private var accessibilityPollTimer: Timer?
 
     private(set) var phase: AppPhase = .idle {
         didSet { updateStatusIcon() }
@@ -28,8 +29,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
         requestMicrophoneAccess()
-        ensureAccessibilityPermission()
-        startHotkeyMonitor()
+
+        if AXIsProcessTrusted() {
+            startHotkeyMonitor()
+        } else {
+            promptForAccessibility()
+            waitForAccessibilityGrant()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -99,13 +105,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func ensureAccessibilityPermission() {
+    /// Triggers the system Accessibility prompt and opens the settings pane.
+    private func promptForAccessibility() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        if !AXIsProcessTrustedWithOptions(options) {
-            showAlert(
-                title: "Accessibility access needed",
-                text: "WizFlow needs Accessibility access for the global hotkey and auto-paste.\n\nEnable WizFlow in System Settings → Privacy & Security → Accessibility, then relaunch."
-            )
+        _ = AXIsProcessTrustedWithOptions(options)
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Polls until Accessibility is granted, then starts the hotkey monitor —
+    /// no relaunch needed.
+    private func waitForAccessibilityGrant() {
+        accessibilityPollTimer?.invalidate()
+        accessibilityPollTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] timer in
+            guard AXIsProcessTrusted() else { return }
+            timer.invalidate()
+            self?.accessibilityPollTimer = nil
+            self?.startHotkeyMonitor()
+            NSSound(named: "Glass")?.play() // audible "ready" cue
         }
     }
 

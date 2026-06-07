@@ -14,8 +14,27 @@ swift build           # debug build during development
 
 Requirements: macOS 14+, Xcode command line tools, Homebrew.
 
-> **Note:** the app is ad-hoc signed, so after each rebuild you may need to
-> re-grant Accessibility permission (System Settings → Privacy & Security).
+## Signing
+
+macOS ties Accessibility/Microphone permissions to the app's code signature.
+Ad-hoc signatures change on every build, forcing you to re-grant permissions.
+Create a stable local signing certificate once and the build script picks it
+up automatically:
+
+```bash
+cd /tmp
+openssl req -x509 -newkey rsa:2048 -keyout k.pem -out c.pem -days 3650 -nodes \
+  -subj "/CN=WizFlow Dev" \
+  -addext "extendedKeyUsage=critical,codeSigning" \
+  -addext "keyUsage=critical,digitalSignature" \
+  -addext "basicConstraints=critical,CA:false"
+openssl pkcs12 -export -out w.p12 -inkey k.pem -in c.pem -name "WizFlow Dev" -passout pass:x
+security import w.p12 -k ~/Library/Keychains/login.keychain-db -P x -T /usr/bin/codesign
+security add-trusted-cert -r trustRoot -p codeSign -k ~/Library/Keychains/login.keychain-db c.pem
+rm k.pem c.pem w.p12
+```
+
+Use a different identity name via `WIZFLOW_SIGN_IDENTITY=<name> ./scripts/build-app.sh`.
 
 ## Project layout
 
