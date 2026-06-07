@@ -9,7 +9,8 @@ enum DictationMode: String {
 
 enum AppPhase {
     case idle
-    case recording(DictationMode)
+    case recording(DictationMode, handsFree: Bool)  // hold mode, or hands-free after a double-tap
+    case pendingDoubleTap(DictationMode)            // quick tap; mic keeps recording briefly awaiting a 2nd tap
     case processing(DictationMode)
 }
 
@@ -20,8 +21,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyMonitor: HotkeyMonitor?
     private let hud = HUDController()
     private var settingsWindow: NSWindow?
+    private var historyWindow: NSWindow?
     private var accessibilityPollTimer: Timer?
     private var statusMenu: NSMenu?
+    private var holdStartedAt: Date?
+    private var pendingTapTimer: Timer?
+    private let tapThreshold: TimeInterval = 0.35    // press shorter than this = a tap
+    private let doubleTapWindow: TimeInterval = 0.45 // max gap between the two taps
 
     private(set) var phase: AppPhase = .idle {
         didSet { updateStatusIcon() }
@@ -38,6 +44,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Always poll: AXIsProcessTrusted can report a stale grant (old signature)
         // while the event tap still fails. Keep trying until the tap installs.
         startHotkeyMonitorWithRetry()
+
+        hud.onCancel = { [weak self] in self?.cancelFromHUD() }
+        hud.onSubmit = { [weak self] in self?.submitFromHUD() }
+        hud.levelProvider = { [weak self] in self?.recorder.level() ?? 0 }
 
         UpdateManager.shared.onUpdateAvailable = { [weak self] release in
             self?.showUpdateMenuItem(version: release.version)
@@ -60,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         holdInfo.isEnabled = false
         menu.addItem(holdInfo)
         menu.addItem(.separator())
+        menu.addItem(menuItem("History…", symbol: "clock.arrow.circlepath", action: #selector(openHistory), keyEquivalent: "h"))
         menu.addItem(menuItem("Settings…", symbol: "gearshape", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(menuItem("Check for Updates…", symbol: "arrow.triangle.2.circlepath", action: #selector(checkForUpdates)))
         menu.addItem(.separator())
@@ -114,7 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
             setSymbolIcon("mic", description: "HoldTalk idle", tint: nil)
-        case .recording:
+        case .recording, .pendingDoubleTap:
             setSymbolIcon("mic.fill", description: "HoldTalk recording", tint: .systemRed)
         case .processing:
             setSymbolIcon("waveform", description: "HoldTalk processing", tint: nil)
@@ -187,23 +198,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             transcribeHotkey: Settings.transcribeHotkey,
             translateHotkey: Settings.translateHotkey
         )
-        monitor.onHoldStart = { [weak self] mode in self?.beginDictation(mode: mode) }
-        monitor.onHoldEnd = { [weak self] in self?.endDictation() }
+        monitor.onHoldStart = { [weak self] mode in self?.onHotkeyDown(mode: mode) }
+        monitor.onHoldEnd = { [weak self] in self?.onHotkeyUp() }
         guard monitor.start() else { return false }
         hotkeyMonitor = monitor
         return true
     }
 
     // MARK: - Dictation flow
+    //
+    // Two ways to dictate with the same hotkey:
+    //   HOLD:       press & hold → talk → release → transcribe.
+    //   HANDS-FREE: double-tap → talk freely → single tap → transcribe.
 
-    private func beginDictation(mode: DictationMode) {
-        guard case .idle = phase else {
+    private func onHotkeyDown(mode: DictationMode) {
+        switch phase {
+        case .idle:
+            holdStartedAt = Date()
+            beginRecording(mode: mode)
+        case .pendingDoubleTap(let pendingMode):
+            // Second tap in time → hands-free; the mic never stopped recording.
+            pendingTapTimer?.invalidate()
+            pendingTapTimer = nil
+            Log.write("dictation: hands-free engaged")
+            phase = .recording(pendingMode, handsFree: true)
+            hud.show(state: .recording(pendingMode, handsFree: true))
+        case .recording(_, handsFree: true):
+            // Tap while hands-free → stop & transcribe.
+            Log.write("dictation: hands-free stop tap")
+            finishRecording()
+        case .recording:
+            break // already holding; ignore
+        case .processing:
             // A previous transcription is still running; cancel it and start fresh.
             transcriber.cancel()
             phase = .idle
-            beginDictation(mode: mode)
-            return
+            holdStartedAt = Date()
+            beginRecording(mode: mode)
         }
+    }
+
+    private func onHotkeyUp() {
+        guard case .recording(let mode, handsFree: false) = phase else { return }
+        let heldDuration = holdStartedAt.map { Date().timeIntervalSince($0) } ?? 0
+        if heldDuration < tapThreshold {
+            // Quick tap — keep recording briefly in case a second tap follows.
+            enterPendingDoubleTap(mode: mode)
+        } else {
+            finishRecording()
+        }
+    }
+
+    private func beginRecording(mode: DictationMode) {
         guard ModelManager.modelInstalled(for: mode) else {
             showAlert(
                 title: "Model not downloaded",
@@ -212,21 +258,69 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             openSettings()
             return
         }
-        Log.write("dictation: hold start, mode=\(mode.rawValue)")
+        Log.write("dictation: start, mode=\(mode.rawValue)")
         // Spin up the whisper-server now so the model loads while the user speaks.
         WhisperServerManager.shared.preload(mode: mode)
         do {
             try recorder.start()
-            phase = .recording(mode)
-            hud.show(state: .recording(mode))
+            phase = .recording(mode, handsFree: false)
+            hud.show(state: .recording(mode, handsFree: false))
             NSSound(named: "Pop")?.play()
         } catch {
             showAlert(title: "Could not start recording", text: error.localizedDescription)
         }
     }
 
-    private func endDictation() {
-        guard case .recording(let mode) = phase else { return }
+    private func enterPendingDoubleTap(mode: DictationMode) {
+        phase = .pendingDoubleTap(mode)
+        pendingTapTimer?.invalidate()
+        pendingTapTimer = Timer.scheduledTimer(withTimeInterval: doubleTapWindow, repeats: false) { [weak self] _ in
+            guard let self, case .pendingDoubleTap = self.phase else { return }
+            // Single short tap — accidental; discard the recording.
+            Log.write("dictation: single tap, discarded")
+            self.recorder.cancel()
+            self.phase = .idle
+            self.hud.hide()
+        }
+    }
+
+    /// ✕ on the HUD pill.
+    private func cancelFromHUD() {
+        switch phase {
+        case .recording, .pendingDoubleTap:
+            Log.write("dictation: cancelled from HUD")
+            pendingTapTimer?.invalidate()
+            pendingTapTimer = nil
+            recorder.cancel()
+            phase = .idle
+            hud.hide()
+        default:
+            break
+        }
+    }
+
+    /// ✓ on the HUD pill.
+    private func submitFromHUD() {
+        switch phase {
+        case .recording, .pendingDoubleTap:
+            Log.write("dictation: submitted from HUD")
+            finishRecording()
+        default:
+            break
+        }
+    }
+
+    private func finishRecording() {
+        let mode: DictationMode
+        switch phase {
+        case .recording(let m, _), .pendingDoubleTap(let m):
+            mode = m
+        default:
+            return
+        }
+        pendingTapTimer?.invalidate()
+        pendingTapTimer = nil
+
         guard let result = recorder.stop() else {
             // Too short or failed — treat as accidental tap.
             Log.write("dictation: recording too short, discarded")
@@ -252,10 +346,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     return
                 }
                 Log.write("dictation: pasting \(transcript.count) chars")
+                HistoryStore.shared.add(transcript)
                 Paster.paste(transcript)
                 NSSound(named: "Tink")?.play()
             }
         }
+    }
+
+    // MARK: - History
+
+    @objc private func openHistory() {
+        if historyWindow == nil {
+            let hosting = NSHostingController(rootView: HistoryView())
+            let window = NSWindow(contentViewController: hosting)
+            window.title = "HoldTalk History"
+            window.styleMask = [.titled, .closable, .resizable]
+            window.isReleasedWhenClosed = false
+            historyWindow = window
+        }
+        historyWindow?.center()
+        historyWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     // MARK: - Settings

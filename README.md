@@ -26,6 +26,9 @@ into whatever app you're typing in — your editor, browser, terminal, anywhere.
 ## Features
 
 - 🎙️ **Hold-to-talk** — hold Right Option (⌥), speak, release. Done.
+- 🙌 **Hands-free mode** — double-tap the hotkey, talk freely, tap once to stop.
+- 🎛️ **Dictation pill** — floating HUD with a live mic-level waveform and ✕ / ✓ buttons that never steal focus.
+- 🕘 **History** — every transcript saved locally; pin, copy, multi-select delete.
 - 🌏 **Bilingual** — speak Bangla → Bangla text, speak English → English text, auto-detected. Includes a fix for Whisper's notorious Bangla→Hindi misdetection.
 - 🔁 **Translate mode** — hold Right Option + Shift, speak Bangla, get polished English text.
 - ⚡ **Fast** — the model preloads *while you're speaking* and stays warm between dictations: ~1.5–3.5s per dictation instead of ~17s cold.
@@ -86,6 +89,9 @@ Then:
 |---|---|
 | Hold **Right ⌥** + speak | Transcribe in spoken language (Bangla/English auto) |
 | Hold **Right ⌥ ⇧** + speak | Translate speech → English text |
+| Double-tap **Right ⌥**, speak, tap once | Hands-free dictation |
+| ✕ / ✓ on the floating pill | Cancel / finish the current dictation |
+| Menu bar → History | Browse, pin, copy, delete past transcripts |
 | Menu bar → Settings | Rebind hotkeys, keep-warm duration, launch at login |
 
 ## Models
@@ -97,6 +103,16 @@ Then:
 
 Models live in `~/Library/Application Support/HoldTalk/models/` and can also be
 downloaded from in-app Settings.
+
+## Uninstall
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/DevWizardHQ/HoldTalk/main/scripts/uninstall.sh | bash
+```
+
+Removes the app, downloaded models, history, logs, and preferences.
+Flags: `--keep-data` (keep models + history), `--with-whisper` (also remove the
+Homebrew `whisper-cpp` package), `-y` (skip confirmation).
 
 ## FAQ
 

@@ -27,6 +27,7 @@ final class AudioRecorder {
         ]
 
         let recorder = try AVAudioRecorder(url: url, settings: settings)
+        recorder.isMeteringEnabled = true
         guard recorder.record() else {
             throw NSError(domain: "HoldTalk", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "Recording failed to start. Check microphone access in System Settings → Privacy & Security → Microphone."
@@ -49,5 +50,22 @@ final class AudioRecorder {
             return nil
         }
         return Result(fileURL: recorder.url, duration: duration)
+    }
+
+    /// Stops and discards the current recording (cancel / accidental tap).
+    func cancel() {
+        guard let recorder else { return }
+        recorder.stop()
+        try? FileManager.default.removeItem(at: recorder.url)
+        self.recorder = nil
+        startedAt = nil
+    }
+
+    /// Live input level for the HUD waveform, normalized 0…1.
+    func level() -> Float {
+        guard let recorder else { return 0 }
+        recorder.updateMeters()
+        let db = recorder.averagePower(forChannel: 0) // -160…0 dBFS
+        return max(0, min(1, (db + 50) / 50))
     }
 }

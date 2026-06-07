@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build app bundle
+        run: ./scripts/build-app.sh release
+
+      - name: Stamp version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" dist/HoldTalk.app/Contents/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" dist/HoldTalk.app/Contents/Info.plist
+          codesign --force --sign - --identifier com.devwizardhq.holdtalk dist/HoldTalk.app
+
+      - name: Package
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd dist
+          ditto -c -k --keepParent HoldTalk.app "HoldTalk-$VERSION-macos-arm64.zip"
+          shasum -a 256 "HoldTalk-$VERSION-macos-arm64.zip" > "HoldTalk-$VERSION-macos-arm64.zip.sha256"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" \
+            --title "HoldTalk $VERSION" \
+            --generate-notes \
+            "dist/HoldTalk-$VERSION-macos-arm64.zip" \
+            "dist/HoldTalk-$VERSION-macos-arm64.zip.sha256"
