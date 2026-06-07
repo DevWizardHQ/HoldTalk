@@ -58,6 +58,19 @@ else
     echo "▸ $APP not found (skipping)"
 fi
 
+# "Launch at login" points at whichever copy of the app last registered it —
+# if any other copy survives (Downloads, a dist build, a second volume), the
+# app comes back on reboot. Sweep every copy Spotlight knows about.
+echo "▸ Removing any other HoldTalk.app copies"
+mdfind "kMDItemCFBundleIdentifier == '$BUNDLE_ID'" 2>/dev/null | while IFS= read -r app_copy; do
+    case "$app_copy" in
+        *.app)
+            echo "  removing $app_copy"
+            rm -rf "$app_copy"
+            ;;
+    esac
+done
+
 if [ "$KEEP_DATA" = 0 ] && [ -d "$SUPPORT" ]; then
     echo "▸ Removing models + history ($SUPPORT)"
     rm -rf "$SUPPORT"
