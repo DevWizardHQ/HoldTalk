@@ -51,6 +51,13 @@ pkill -x HoldTalk 2>/dev/null || true
 pkill -f 'whisper-server.*--port 1817[89]' 2>/dev/null || true
 sleep 1
 
+# Reset privacy grants BEFORE deleting the app — tccutil can't resolve the
+# bundle identifier once no copy exists on disk, leaving a ghost row in
+# System Settings → Privacy & Security.
+echo "▸ Resetting privacy permissions"
+tccutil reset Accessibility "$BUNDLE_ID" 2>/dev/null || true
+tccutil reset Microphone "$BUNDLE_ID" 2>/dev/null || true
+
 if [ -d "$APP" ]; then
     echo "▸ Removing $APP"
     rm -rf "$APP"
@@ -83,11 +90,13 @@ fi
 
 echo "▸ Removing preferences"
 defaults delete "$BUNDLE_ID" 2>/dev/null || true
+rm -f "$HOME/Library/Preferences/$BUNDLE_ID.plist"
 
-# Privacy grants (Microphone / Accessibility) — harmless to leave, but tidy up.
-echo "▸ Resetting privacy permissions (best effort)"
-tccutil reset Accessibility "$BUNDLE_ID" 2>/dev/null || true
-tccutil reset Microphone "$BUNDLE_ID" 2>/dev/null || true
+echo "▸ Removing caches and saved state"
+rm -rf "$HOME/Library/Caches/$BUNDLE_ID" \
+       "$HOME/Library/HTTPStorages/$BUNDLE_ID" \
+       "$HOME/Library/Saved Application State/$BUNDLE_ID.savedState"
+rm -f "${TMPDIR:-/tmp}"/holdtalk-*.wav 2>/dev/null || true
 
 # whisper-cpp dependency: ask interactively unless a flag already decided.
 if command -v brew >/dev/null && brew list whisper-cpp >/dev/null 2>&1; then
@@ -108,3 +117,5 @@ fi
 
 echo
 echo "✓ HoldTalk uninstalled."
+echo "  If a stale \"HoldTalk\" row remains in System Settings → General →"
+echo "  Login Items, remove it there — it is inert now that the app is gone."
