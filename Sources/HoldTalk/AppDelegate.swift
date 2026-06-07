@@ -56,16 +56,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateStatusIcon()
 
         let menu = NSMenu()
-        let holdInfo = NSMenuItem(title: "Hold hotkey to dictate", action: nil, keyEquivalent: "")
+        let holdInfo = menuItem("Hold hotkey to dictate", symbol: "mic.badge.plus", action: nil)
         holdInfo.isEnabled = false
         menu.addItem(holdInfo)
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
-        menu.addItem(NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: ""))
+        menu.addItem(menuItem("Settings…", symbol: "gearshape", action: #selector(openSettings), keyEquivalent: ","))
+        menu.addItem(menuItem("Check for Updates…", symbol: "arrow.triangle.2.circlepath", action: #selector(checkForUpdates)))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit HoldTalk", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(menuItem("Quit HoldTalk", symbol: "power", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
         statusMenu = menu
+    }
+
+    private func menuItem(_ title: String, symbol: String, action: Selector?,
+                          keyEquivalent: String = "") -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
+        item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
+        return item
     }
 
     // MARK: - Updates
@@ -79,8 +86,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showUpdateMenuItem(version: String) {
         guard let menu = statusMenu,
               !menu.items.contains(where: { $0.action == #selector(installUpdate) }) else { return }
-        let item = NSMenuItem(title: "⬆ Install HoldTalk \(version)…",
-                              action: #selector(installUpdate), keyEquivalent: "")
+        let item = menuItem("Install HoldTalk \(version)…",
+                            symbol: "arrow.down.circle.fill", action: #selector(installUpdate))
         menu.insertItem(item, at: 0)
         menu.insertItem(.separator(), at: 1)
     }
