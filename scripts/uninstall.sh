@@ -54,9 +54,39 @@ sleep 1
 # Reset privacy grants BEFORE deleting the app — tccutil can't resolve the
 # bundle identifier once no copy exists on disk, leaving a ghost row in
 # System Settings → Privacy & Security.
+reset_tcc() {
+    tccutil reset Accessibility "$BUNDLE_ID" >/dev/null 2>&1 &&
+    tccutil reset Microphone "$BUNDLE_ID" >/dev/null 2>&1
+}
+
 echo "▸ Resetting privacy permissions"
-tccutil reset Accessibility "$BUNDLE_ID" 2>/dev/null || true
-tccutil reset Microphone "$BUNDLE_ID" 2>/dev/null || true
+if ! reset_tcc; then
+    # The app is already gone (e.g. deleted by hand), so the bundle id no
+    # longer resolves and the reset fails, stranding ghost rows in System
+    # Settings. Register a throwaway stub bundle just long enough to reset.
+    LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+    STUB="/Applications/HoldTalk.app"
+    if [ ! -e "$STUB" ] && [ -x "$LSREGISTER" ]; then
+        echo "  (registering a stub so macOS can resolve the bundle id)"
+        mkdir -p "$STUB/Contents/MacOS"
+        cat > "$STUB/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
+<key>CFBundleName</key><string>HoldTalk</string>
+<key>CFBundleExecutable</key><string>HoldTalk</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+</dict></plist>
+PLIST
+        cp /usr/bin/true "$STUB/Contents/MacOS/HoldTalk"
+        codesign --force --sign - --identifier "$BUNDLE_ID" "$STUB" >/dev/null 2>&1 || true
+        "$LSREGISTER" -f "$STUB" >/dev/null 2>&1 || true
+        sleep 1
+        reset_tcc || true
+        rm -rf "$STUB"
+    fi
+fi
 
 if [ -d "$APP" ]; then
     echo "▸ Removing $APP"
